@@ -1,10 +1,10 @@
 package com.cafe.reservation.controller;
 
-import com.cafe.reservation.dto.reservation.ReservationRequest;
-import com.cafe.reservation.dto.reservation.ReservationResponse;
-import com.cafe.reservation.security.CustomUserDetails;
+import com.cafe.reservation.dto.ReservationRequestDTO;
+import com.cafe.reservation.dto.ReservationResponseDTO;
 import com.cafe.reservation.service.ReservationService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,40 +19,28 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/reservations")
+@RequiredArgsConstructor
 public class ReservationController {
 
     private final ReservationService reservationService;
 
-    public ReservationController(ReservationService reservationService) {
-        this.reservationService = reservationService;
-    }
-
     @GetMapping("/me")
-    public List<ReservationResponse> myReservations(@AuthenticationPrincipal CustomUserDetails principal) {
-        return reservationService.findMyReservations(principal.getId());
+    public List<ReservationResponseDTO> myReservations(@AuthenticationPrincipal Long userId) {
+        return reservationService.findByUser(userId);
     }
 
     @GetMapping("/{id}")
-    public ReservationResponse getById(@PathVariable Long id,
-                                       @AuthenticationPrincipal CustomUserDetails principal) {
-        return reservationService.findById(id, principal.getId(), isAdmin(principal));
+    public ReservationResponseDTO getById(@PathVariable Long id) {
+        return reservationService.findById(id);
     }
 
     @PostMapping
-    public ResponseEntity<ReservationResponse> create(@Valid @RequestBody ReservationRequest request,
-                                                      @AuthenticationPrincipal CustomUserDetails principal) {
-        ReservationResponse created = reservationService.create(request, principal.getId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    public ResponseEntity<ReservationResponseDTO> create(@Valid @RequestBody ReservationRequestDTO request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(reservationService.create(request));
     }
 
     @PostMapping("/{id}/cancel")
-    public ReservationResponse cancel(@PathVariable Long id,
-                                      @AuthenticationPrincipal CustomUserDetails principal) {
-        return reservationService.cancel(id, principal.getId(), isAdmin(principal));
-    }
-
-    private boolean isAdmin(CustomUserDetails principal) {
-        return principal.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    public ReservationResponseDTO cancel(@PathVariable Long id) {
+        return reservationService.cancel(id);
     }
 }
