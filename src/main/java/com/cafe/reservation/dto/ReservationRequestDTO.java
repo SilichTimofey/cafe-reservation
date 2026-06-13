@@ -8,7 +8,6 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 public record ReservationRequestDTO(
-        @NotNull Long userId,
         @NotNull Long tableId,
         @NotNull @Min(1) Integer guestsCount,
         @NotNull @Future LocalDate reservationDate,

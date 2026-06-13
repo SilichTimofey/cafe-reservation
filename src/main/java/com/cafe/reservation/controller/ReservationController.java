@@ -35,8 +35,10 @@ public class ReservationController {
     }
 
     @PostMapping
-    public ResponseEntity<ReservationResponseDTO> create(@Valid @RequestBody ReservationRequestDTO request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(reservationService.create(request));
+    public ResponseEntity<ReservationResponseDTO> create(
+            @Valid @RequestBody ReservationRequestDTO request,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(reservationService.create(request, userId));
     }
 
     @PostMapping("/{id}/cancel")

@@ -46,9 +46,9 @@ public class ReservationService {
     }
 
     @Transactional
-    public ReservationResponseDTO create(ReservationRequestDTO dto) {
-        User user = userRepository.findById(dto.userId())
-                .orElseThrow(() -> ResourceNotFoundException.of("User", dto.userId()));
+    public ReservationResponseDTO create(ReservationRequestDTO dto, Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> ResourceNotFoundException.of("User", userId));
         CafeTable table = tableRepository.findById(dto.tableId())
                 .orElseThrow(() -> ResourceNotFoundException.of("CafeTable", dto.tableId()));
 
