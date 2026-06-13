@@ -18,15 +18,15 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/reservations")
+@RequestMapping("/api/reservations")
 @RequiredArgsConstructor
 public class ReservationController {
 
     private final ReservationService reservationService;
 
-    @GetMapping("/me")
+    @GetMapping("/my")
     public List<ReservationResponseDTO> myReservations(@AuthenticationPrincipal Long userId) {
-        return reservationService.findByUser(userId);
+        return reservationService.findActiveByUser(userId);
     }
 
     @GetMapping("/{id}")

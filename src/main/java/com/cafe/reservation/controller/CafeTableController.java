@@ -5,6 +5,7 @@ import com.cafe.reservation.dto.TableResponseDTO;
 import com.cafe.reservation.service.CafeTableService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,12 +15,15 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/tables")
+@RequestMapping("/api/tables")
 @RequiredArgsConstructor
 public class CafeTableController {
 
@@ -28,6 +32,14 @@ public class CafeTableController {
     @GetMapping
     public List<TableResponseDTO> getAll() {
         return tableService.findAll();
+    }
+
+    @GetMapping("/available")
+    public List<TableResponseDTO> getAvailable(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime time,
+            @RequestParam int guests) {
+        return tableService.findAvailable(date, time, guests);
     }
 
     @GetMapping("/{id}")

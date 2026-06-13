@@ -23,6 +23,10 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class ReservationService {
 
+    /** Statuses considered active (still occupying a slot). */
+    public static final List<ReservationStatus> ACTIVE_STATUSES =
+            List.of(ReservationStatus.PENDING, ReservationStatus.CONFIRMED);
+
     private final ReservationRepository repository;
     private final UserRepository userRepository;
     private final CafeTableRepository tableRepository;
@@ -30,6 +34,11 @@ public class ReservationService {
 
     public List<ReservationResponseDTO> findByUser(Long userId) {
         return repository.findByUserId(userId).stream().map(mapper::toResponse).toList();
+    }
+
+    public List<ReservationResponseDTO> findActiveByUser(Long userId) {
+        return repository.findByUserIdAndStatusIn(userId, ACTIVE_STATUSES)
+                .stream().map(mapper::toResponse).toList();
     }
 
     public ReservationResponseDTO findById(Long id) {

@@ -27,12 +27,10 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        // Booking endpoints: any authenticated user (ROLE_USER or ROLE_ADMIN)
-                        .requestMatchers("/api/v1/reservations/**").authenticated()
-                        // Tables: public read, admin-only writes
-                        .requestMatchers(HttpMethod.GET, "/api/v1/tables/**").permitAll()
-                        .requestMatchers("/api/v1/tables/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/tables/**", "/api/reviews/**").permitAll()
+                        .requestMatchers("/api/tables/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/import/**").hasRole("ADMIN")
+                        .requestMatchers("/api/reservations/**").authenticated()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
