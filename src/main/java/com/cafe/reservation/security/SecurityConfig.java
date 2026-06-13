@@ -29,7 +29,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/tables/**", "/api/reviews/**").permitAll()
                         .requestMatchers("/api/tables/**").hasRole("ADMIN")
-                        .requestMatchers("/api/v1/import/**").hasRole("ADMIN")
+                        .requestMatchers("/api/entities/**").hasRole("ADMIN")
                         .requestMatchers("/api/reservations/**").authenticated()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

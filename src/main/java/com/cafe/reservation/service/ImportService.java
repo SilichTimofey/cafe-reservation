@@ -3,8 +3,8 @@ package com.cafe.reservation.service;
 import com.cafe.reservation.dto.ImportResult;
 import com.cafe.reservation.exception.BusinessRuleException;
 import com.cafe.reservation.model.CafeTable;
-import com.cafe.reservation.model.TableStatus;
 import com.cafe.reservation.repository.CafeTableRepository;
+import lombok.RequiredArgsConstructor;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -26,24 +26,23 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Bulk-imports {@link CafeTable} rows from Excel (.xlsx/.xls via Apache POI)
- * or CSV (Apache Commons CSV). Expected columns: tableNumber, capacity,
- * locationNote, status.
+ * or CSV (Apache Commons CSV). Expected columns: tableNumber, capacity, isVip.
  *
  * <p>The import reports partial success: a malformed row is skipped and recorded
  * in {@link ImportResult}, while valid rows are still persisted.
  */
 @Service
+@RequiredArgsConstructor
 public class ImportService {
 
     private final CafeTableRepository tableRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
 
-    public ImportService(CafeTableRepository tableRepository) {
-        this.tableRepository = tableRepository;
-    }
-
     @Transactional
     public ImportResult importTables(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessRuleException("Uploaded file is empty");
+        }
         String filename = file.getOriginalFilename();
         if (filename == null) {
             throw new BusinessRuleException("Uploaded file has no name");
@@ -76,9 +75,8 @@ public class ImportService {
                 try {
                     String tableNumber = stringValue(row.getCell(0));
                     Integer capacity = intValue(row.getCell(1));
-                    String locationNote = stringValue(row.getCell(2));
-                    TableStatus status = statusValue(stringValue(row.getCell(3)));
-                    persist(tableNumber, capacity, locationNote, status, rowNum, result);
+                    boolean vip = boolValue(stringValue(row.getCell(2)));
+                    persist(tableNumber, capacity, vip, rowNum, result);
                 } catch (Exception ex) {
                     result.addError(rowNum, ex.getMessage());
                 }
@@ -102,9 +100,8 @@ public class ImportService {
                 try {
                     String tableNumber = record.get("tableNumber");
                     Integer capacity = Integer.parseInt(record.get("capacity").trim());
-                    String locationNote = record.isMapped("locationNote") ? record.get("locationNote") : null;
-                    TableStatus status = statusValue(record.get("status"));
-                    persist(tableNumber, capacity, locationNote, status, rowNum, result);
+                    boolean vip = record.isMapped("isVip") && boolValue(record.get("isVip"));
+                    persist(tableNumber, capacity, vip, rowNum, result);
                 } catch (Exception ex) {
                     result.addError(rowNum, ex.getMessage());
                 }
@@ -113,8 +110,7 @@ public class ImportService {
         return result;
     }
 
-    private void persist(String tableNumber, Integer capacity, String locationNote,
-                         TableStatus status, int rowNum, ImportResult result) {
+    private void persist(String tableNumber, Integer capacity, boolean vip, int rowNum, ImportResult result) {
         if (tableNumber == null || tableNumber.isBlank()) {
             result.addError(rowNum, "tableNumber is required");
             return;
@@ -127,13 +123,11 @@ public class ImportService {
             result.addError(rowNum, "Duplicate tableNumber: " + tableNumber);
             return;
         }
-        CafeTable table = CafeTable.builder()
+        tableRepository.save(CafeTable.builder()
                 .tableNumber(tableNumber)
                 .capacity(capacity)
-                .locationNote(locationNote)
-                .status(status == null ? TableStatus.AVAILABLE : status)
-                .build();
-        tableRepository.save(table);
+                .isVip(vip)
+                .build());
         result.incrementImported();
     }
 
@@ -150,10 +144,11 @@ public class ImportService {
         return value == null ? null : Integer.parseInt(value);
     }
 
-    private TableStatus statusValue(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return TableStatus.AVAILABLE;
+    private boolean boolValue(String raw) {
+        if (raw == null) {
+            return false;
         }
-        return TableStatus.valueOf(raw.trim().toUpperCase());
+        String v = raw.trim().toLowerCase();
+        return v.equals("true") || v.equals("1") || v.equals("yes") || v.equals("vip");
     }
 }
