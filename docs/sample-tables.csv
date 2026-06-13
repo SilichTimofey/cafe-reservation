@@ -1,0 +1,5 @@
+tableNumber,capacity,locationNote,status
+T1,2,Window,AVAILABLE
+T2,4,Center,AVAILABLE
+T3,6,Terrace,AVAILABLE
+T4,2,Bar,OUT_OF_SERVICE
