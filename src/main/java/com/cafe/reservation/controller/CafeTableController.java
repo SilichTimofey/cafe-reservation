@@ -3,6 +3,8 @@ package com.cafe.reservation.controller;
 import com.cafe.reservation.dto.TableRequestDTO;
 import com.cafe.reservation.dto.TableResponseDTO;
 import com.cafe.reservation.service.CafeTableService;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -36,8 +38,14 @@ public class CafeTableController {
 
     @GetMapping("/available")
     public List<TableResponseDTO> getAvailable(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime time,
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            @Parameter(schema = @Schema(type = "string", format = "date", example = "2026-06-15"))
+            LocalDate date,
+            @RequestParam
+            @DateTimeFormat(pattern = "HH:mm")
+            @Parameter(schema = @Schema(type = "string", example = "19:00"))
+            LocalTime time,
             @RequestParam int guests) {
         return tableService.findAvailable(date, time, guests);
     }
