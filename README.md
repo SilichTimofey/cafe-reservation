@@ -271,15 +271,6 @@ docker run --name cafe-db -e POSTGRES_DB=cafe_reservation -e POSTGRES_USER=postg
 ```bash
 mvn clean spring-boot:run
 ```
-
-**Полезные команды Docker:**
-
-```bash
-docker start cafe-db   # запустить уже созданный контейнер
-docker stop cafe-db    # остановить
-docker rm cafe-db      # удалить контейнер
-```
-
 ---
 
 ### Вариант 2 — локально без Docker
@@ -322,8 +313,6 @@ mvn clean spring-boot:run
 
 ### Проверка работы
 
-Приложение доступно по адресу **http://localhost:8080**.
-
 **Swagger UI:** http://localhost:8080/swagger-ui.html
 
 Для защищённых эндпоинтов:
@@ -340,9 +329,6 @@ POST /api/auth/login
   "name": "Тест"
 }
 ```
-
-Если при старте ошибка подключения к БД — проверьте, что PostgreSQL запущен и пароль совпадает с `DB_PASSWORD`.
-
 ---
 
 ## Назначение роли ADMIN (для демонстрации)
