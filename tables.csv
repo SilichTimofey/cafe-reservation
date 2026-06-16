@@ -1,0 +1,7 @@
+tableNumber,capacity,isVip
+T1,2,false
+T2,4,false
+T3,6,true
+T4,2,false
+T5,2,false
+T7,2,false
