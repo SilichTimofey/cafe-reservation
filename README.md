@@ -1,90 +1,335 @@
-# Cafe Table Reservation API
+# Система бронирования столиков в кафе
 
-REST API for a single cafe's table reservation system, built with Spring Boot 3 (Java 17).
+REST API для управления залом кафе, бронированием столиков, отзывами и массовым импортом данных.  
+Проект реализован на **Spring Boot 3** (Java 17) с использованием **PostgreSQL**, **JWT-аутентификации** и **Swagger UI** для интерактивного тестирования.
 
-## Tech stack
+**Импорт данных:** `POST /api/entities/import` — загрузка CSV-файла для первоначального наполнения зала (только формат `.csv`).
 
-- **Spring Web** — REST controllers
-- **Spring Data JPA** + **PostgreSQL** — persistence
-- **Spring Security** + **JWT (jjwt)** — stateless authentication & role-based authorization
-- **Lombok** — boilerplate reduction on entities
-- **Commons CSV** — bulk import of tables from CSV
-- **Bean Validation** — request DTO validation
+---
 
-## Architecture (layered)
+## Технологический стек
 
-```
-controller   ->  thin HTTP layer: validation + delegation
-service      ->  business logic + transaction boundaries
-repository   ->  Spring Data JPA data access
-model        ->  JPA entities (never leave the service layer)
-dto          ->  request/response contracts (records)
-mapper       ->  entity <-> DTO conversion
-security     ->  JWT filter, JwtService, UserDetails, SecurityConfig
-exception    ->  domain exceptions + @RestControllerAdvice (uniform ApiError)
-```
+| Категория | Технология |
+|---|---|
+| Язык / платформа | Java 17, Spring Boot 3.3.5 |
+| Web-слой | Spring Web (REST) |
+| Персистентность | Spring Data JPA, Hibernate, PostgreSQL |
+| Безопасность | Spring Security, JWT (jjwt 0.12) |
+| Валидация | Jakarta Bean Validation |
+| Импорт данных | Apache Commons CSV 1.12 |
+| Документация API | SpringDoc OpenAPI 2.6 (Swagger UI) |
+| Утилиты | Lombok, Maven |
 
-Key design rules:
-- JPA entities never cross the controller boundary — only DTOs do.
-- Double-booking is prevented in `ReservationService` via an overlap query.
-- Bulk import reports **partial success** (`ImportResult`) instead of a binary outcome.
+---
 
-## Package layout
+## Ключевой функционал
 
-```
-com.cafe.reservation
-├── ReservationApiApplication
-├── controller   (Auth, CafeTable, Reservation, Import)
-├── service      (Auth, CafeTable, Reservation, Import)
-├── repository   (User, CafeTable, Reservation)
-├── model        (User, CafeTable, Reservation, enums)
-├── dto          (auth, table, reservation, ImportResult)
-├── mapper       (CafeTableMapper, ReservationMapper)
-├── security     (JwtService, JwtAuthenticationFilter, SecurityConfig, ...)
-└── exception    (GlobalExceptionHandler, ApiError, custom exceptions)
-```
+### Беспарольная аутентификация и регистрация по номеру телефона
 
-## Configuration
+- Единый эндпоинт `POST /api/auth/login` выполняет **вход и автоматическую регистрацию**: если пользователь с таким номером не найден, он создаётся в БД.
+- Пароль не используется — идентификация по номеру телефона и JWT-токену.
+- Строгая валидация белорусских мобильных номеров: формат `+375XXXXXXXXX`, допустимые коды операторов **25, 29, 33, 44**.
 
-Configured via environment variables (see `src/main/resources/application.yml`):
+### Ролевая модель доступа (Public, USER, ADMIN)
 
-| Variable | Default | Description |
+| Уровень | Описание |
+|---|---|
+| **Public** | Доступ без токена: просмотр столиков, свободных мест, отзывов; вход в систему |
+| **USER** | Аутентифицированный пользователь: бронирование, просмотр и отмена своих броней, создание отзывов |
+| **ADMIN** | Администратор: CRUD столиков, импорт CSV |
+
+Роли хранятся в сущности `User` (`USER` / `ADMIN`). При первом входе всегда назначается `USER`. Роль `ADMIN` назначается вручную в БД (см. раздел «Назначение роли ADMIN»).
+
+### Управление столиками и поиск свободных мест
+
+- CRUD для столиков с полями: номер, вместимость, признак **VIP**.
+- `GET /api/tables/available` — умный поиск: возвращает столики, у которых `capacity >= guests` и которые **не заняты** активной бронью (`CONFIRMED`) на указанные дату и время.
+
+### Жизненный цикл бронирования
+
+- Два статуса: **`CONFIRMED`** (активная бронь) и **`CANCELLED`** (отменена).
+- Новая бронь сразу создаётся со статусом `CONFIRMED`.
+- Защита от двойного бронирования: проверка занятости слота только по активным (`CONFIRMED`) броням.
+- **Защита от IDOR:**
+  - `GET /api/reservations/{id}` — доступ только владельцу или ADMIN (чужая бронь возвращает 404).
+  - `POST /api/reservations/{id}/cancel` — отменить может только владелец или ADMIN.
+  - `GET /api/reservations/my` — список только **активных** броней текущего пользователя.
+
+### Система отзывов
+
+- Публичный просмотр всех отзывов (`GET /api/reviews`).
+- Создание отзыва (`POST /api/reviews`) — только для авторизованных пользователей.
+- Автор отзыва берётся из **JWT** (`@AuthenticationPrincipal`), а не из тела запроса — клиент не может подделать `userId`.
+- Рейтинг: от 1 до 5.
+
+### Импорт данных из CSV
+
+- Эндпоинт `POST /api/entities/import` (только ADMIN).
+- Формат: `multipart/form-data`, поле `file` с расширением `.csv`.
+- Ожидаемые колонки: `tableNumber`, `capacity`, `isVip`.
+- Построчная валидация с **частичным успехом**: корректные строки сохраняются, ошибочные пропускаются.
+- Ответ `ImportResult`: `totalRows`, `imported`, `rejected`, список ошибок по номерам строк.
+- Дубликаты по `tableNumber` отклоняются с сообщением `Duplicate tableNumber`.
+
+Пример файла: [`tables.csv`](tables.csv) или [`docs/sample-tables.csv`](docs/sample-tables.csv).
+
+---
+
+## Модель данных
+
+| Сущность | Таблица | Описание |
 |---|---|---|
-| `DB_HOST` / `DB_PORT` | `localhost` / `5432` | PostgreSQL host/port |
-| `DB_NAME` | `cafe_reservation` | Database name |
-| `DB_USER` / `DB_PASSWORD` | `postgres` / `1111` | DB credentials |
-| `JWT_SECRET` | (dev default) | **Base64-encoded** 256-bit signing key — override in prod |
+| `User` | `users` | Пользователь: имя, телефон, роль |
+| `CafeTable` | `cafe_tables` | Столик: номер, вместимость, VIP |
+| `Reservation` | `reservations` | Бронь: пользователь, столик, дата/время, гости, статус |
+| `Review` | `reviews` | Отзыв: пользователь, рейтинг, комментарий, дата создания |
 
-## Build & run
+---
 
-Requires JDK 17+ and Maven 3.9+.
+## Архитектура
+
+Проект построен по **слоистой архитектуре**:
+
+```
+controller  →  HTTP-слой: валидация запросов, делегирование в сервисы
+service     →  бизнес-логика, транзакции, проверка прав доступа
+repository  →  Spring Data JPA
+model       →  JPA-сущности (не покидают сервисный слой)
+dto         →  контракты запросов/ответов (records)
+mapper      →  преобразование entity ↔ DTO
+security    →  JWT-фильтр, SecurityConfig
+exception   →  единый формат ошибок (ApiError)
+```
+
+---
+
+## Спецификация API
+
+Всего **15 эндпоинтов**. Для защищённых методов передайте JWT в заголовке:
+
+```
+Authorization: Bearer <accessToken>
+```
+
+### AuthController — `/api/auth`
+
+| Метод | Путь | Доступ | Описание |
+|---|---|---|---|
+| `POST` | `/api/auth/login` | Public | Вход / регистрация по телефону. Возвращает JWT-токен |
+
+**Тело запроса (`LoginRequest`):**
+```json
+{
+  "phoneNumber": "+375291234567",
+  "name": "Иван"
+}
+```
+
+**Ответ (`AuthResponse`):** `accessToken`, `tokenType` (`Bearer`), `userId`, `role` (`ROLE_USER` / `ROLE_ADMIN`).
+
+---
+
+### CafeTableController — `/api/tables`
+
+| Метод | Путь | Доступ | Описание |
+|---|---|---|---|
+| `GET` | `/api/tables` | Public | Список всех столиков |
+| `GET` | `/api/tables/available?date=&time=&guests=` | Public | Свободные столики на дату/время с учётом вместимости |
+| `GET` | `/api/tables/{id}` | Public | Столик по ID |
+| `POST` | `/api/tables` | ADMIN | Создание столика |
+| `PUT` | `/api/tables/{id}` | ADMIN | Обновление столика |
+| `DELETE` | `/api/tables/{id}` | ADMIN | Удаление столика |
+
+**Параметры `/available`:**
+- `date` — дата в формате `YYYY-MM-DD` (например, `2026-06-15`)
+- `time` — время в формате `HH:mm` (например, `19:00`)
+- `guests` — количество гостей (целое число)
+
+---
+
+### ReservationController — `/api/reservations`
+
+| Метод | Путь | Доступ | Описание |
+|---|---|---|---|
+| `GET` | `/api/reservations/my` | USER | Активные (`CONFIRMED`) брони текущего пользователя |
+| `GET` | `/api/reservations/{id}` | USER (владелец) / ADMIN | Бронь по ID с проверкой владельца |
+| `POST` | `/api/reservations` | USER | Создание брони (статус сразу `CONFIRMED`) |
+| `POST` | `/api/reservations/{id}/cancel` | USER (владелец) / ADMIN | Отмена брони (статус → `CANCELLED`) |
+
+**Тело запроса на создание (`ReservationRequestDTO`):**
+```json
+{
+  "tableId": 1,
+  "guestsCount": 2,
+  "reservationDate": "2026-07-01",
+  "reservationTime": "19:00"
+}
+```
+
+---
+
+### ReviewController — `/api/reviews`
+
+| Метод | Путь | Доступ | Описание |
+|---|---|---|---|
+| `GET` | `/api/reviews` | Public | Список всех отзывов |
+| `POST` | `/api/reviews` | USER | Создание отзыва (автор из JWT) |
+
+**Тело запроса (`ReviewRequestDTO`):**
+```json
+{
+  "rating": 5,
+  "comment": "Отличное место, уютная атмосфера"
+}
+```
+
+---
+
+### ImportController — `/api/entities`
+
+| Метод | Путь | Доступ | Описание |
+|---|---|---|---|
+| `POST` | `/api/entities/import` | ADMIN | Импорт столиков из CSV-файла (`multipart/form-data`, поле `file`) |
+
+**Формат CSV:**
+
+```csv
+tableNumber,capacity,isVip
+T1,2,false
+T2,4,false
+T3,6,true
+```
+
+Допустимые значения `isVip`: `true`, `false`, `1`, `0`, `yes`, `vip`.
+
+**Пример ответа (`ImportResult`):**
+```json
+{
+  "totalRows": 3,
+  "imported": 2,
+  "rejected": 1,
+  "errors": [
+    { "rowNumber": 4, "reason": "Duplicate tableNumber: T1" }
+  ]
+}
+```
+
+---
+
+### Все GET-методы (6 штук)
+
+| № | Метод | Путь | Доступ |
+|---|---|---|---|
+| 1 | `GET` | `/api/tables` | Public |
+| 2 | `GET` | `/api/tables/available` | Public |
+| 3 | `GET` | `/api/tables/{id}` | Public |
+| 4 | `GET` | `/api/reviews` | Public |
+| 5 | `GET` | `/api/reservations/my` | USER |
+| 6 | `GET` | `/api/reservations/{id}` | USER / ADMIN |
+
+---
+
+## Запуск приложения
+
+### Требования
+
+- JDK 17+
+- Maven 3.9+
+- PostgreSQL 14+
+
+### 1. Настройка базы данных
+
+Создайте базу данных (если ещё не создана):
+
+```sql
+CREATE DATABASE cafe_reservation;
+```
+
+При первом запуске Hibernate автоматически создаст таблицы (`ddl-auto: update`).
+
+### 2. Переменные окружения (опционально)
+
+| Переменная | Значение по умолчанию | Описание |
+|---|---|---|
+| `DB_HOST` | `localhost` | Хост PostgreSQL |
+| `DB_PORT` | `5432` | Порт |
+| `DB_NAME` | `cafe_reservation` | Имя БД |
+| `DB_USER` | `postgres` | Пользователь БД |
+| `DB_PASSWORD` | `1111` | Пароль БД |
+| `JWT_SECRET` | (dev-ключ в `application.yml`) | Base64-ключ для подписи JWT |
+
+### 3. Запуск через Docker (PostgreSQL)
 
 ```bash
-# Start PostgreSQL (example via Docker)
 docker run --name cafe-db -e POSTGRES_DB=cafe_reservation \
   -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
+```
 
-# Build and run
+### 4. Сборка и запуск
+
+```bash
 mvn clean spring-boot:run
 ```
 
-## REST endpoints
+Приложение стартует на **http://localhost:8080**.
 
-| Method | Path | Access | Description |
-|---|---|---|---|
-| POST | `/api/auth/login` | public | Login, returns JWT |
-| GET | `/api/tables` | public | List tables |
-| GET | `/api/tables/available` | public | List available tables |
-| GET | `/api/tables/{id}` | public | Get table |
-| POST/PUT/DELETE | `/api/tables/**` | ADMIN | Manage tables |
-| GET | `/api/reviews` | public | List reviews |
-| GET | `/api/reservations/my` | USER | My reservations |
-| GET | `/api/reservations/{id}` | owner/ADMIN | Get reservation |
-| POST | `/api/reservations` | USER | Create reservation |
-| POST | `/api/reservations/{id}/cancel` | owner/ADMIN | Cancel reservation |
-| POST | `/api/entities/import` | ADMIN | Import tables (CSV) |
+### 5. Swagger UI
 
-## Import file format
+Интерактивная документация и тестирование API:
 
-Columns (header row required): `tableNumber`, `capacity`, `locationNote`, `status`.
-See [`docs/sample-tables.csv`](docs/sample-tables.csv). `status` is `AVAILABLE` or `OUT_OF_SERVICE`.
+**http://localhost:8080/swagger-ui.html**
+
+Для защищённых эндпоинтов:
+1. Выполните `POST /api/auth/login` и скопируйте `accessToken`.
+2. Нажмите **Authorize** в Swagger UI.
+3. Введите токен (без префикса `Bearer` — Swagger добавит его автоматически).
+
+---
+
+## Назначение роли ADMIN (для демонстрации)
+
+При первом входе пользователю всегда назначается роль `USER`. Для тестирования ADMIN-функций:
+
+1. Выполните `POST /api/auth/login` с нужным номером телефона.
+2. В PostgreSQL выполните:
+
+```sql
+UPDATE users SET role = 'ADMIN' WHERE phone_number = '+375291234567';
+```
+
+3. Повторите `POST /api/auth/login` — новый JWT будет содержать `ROLE_ADMIN`.
+4. Используйте этот токен в Swagger для импорта CSV и управления столиками.
+
+---
+
+## Сценарий демонстрации (краткий)
+
+1. **Public:** `GET /api/tables`, `GET /api/reviews` — без токена.
+2. **Регистрация:** `POST /api/auth/login` → получить JWT.
+3. **USER:** `GET /api/tables/available` → `POST /api/reservations` → `GET /api/reservations/my` → `POST /api/reviews`.
+4. **ADMIN:** назначить роль в БД → перелогиниться → `POST /api/entities/import` (файл `tables.csv`) → `POST /api/tables`.
+5. **IDOR:** попытка `GET /api/reservations/{чужой_id}` → 404.
+
+---
+
+## Структура проекта
+
+```
+src/main/java/com/cafe/reservation/
+├── ReservationApiApplication.java
+├── config/          SwaggerConfig
+├── controller/      Auth, CafeTable, Reservation, Review, Import
+├── service/         Auth, CafeTable, Reservation, Review, Import
+├── repository/      User, CafeTable, Reservation, Review
+├── model/           User, CafeTable, Reservation, Review, Role, ReservationStatus
+├── dto/             запросы/ответы, ImportResult
+├── mapper/          CafeTableMapper, ReservationMapper, ReviewMapper
+├── security/        JwtService, JwtAuthenticationFilter, SecurityConfig
+└── exception/       GlobalExceptionHandler, ApiError
+```
+
+---
+
+## Репозиторий
+
+https://github.com/SilichTimofey/cafe-reservation
