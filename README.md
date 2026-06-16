@@ -1,26 +1,27 @@
 # Система бронирования столиков в кафе
 
-REST API для управления залом кафе, бронированием столиков, отзывами и массовым импортом данных.  
+REST API для управления залом кафе, бронированием столиков, отзывами,импортом данных.  
 Проект реализован на **Spring Boot 3** (Java 17) с использованием **PostgreSQL**, **JWT-аутентификации** и **Swagger UI** для интерактивного тестирования.
 
-**Импорт данных:** `POST /api/entities/import` — загрузка CSV-файла для первоначального наполнения зала (только формат `.csv`).
+Задание:
+1. Создать систему бронирования столиков к кафе.
+2. Реализовать Импорт данных: `POST /api/entities/import` — загрузка CSV-файла для первоначального наполнения зала (только формат `.csv`).
 
 ---
 
-## Технологический стек
+### Технологический стек
 
-| Категория | Технология |
-|---|---|
-| Язык / платформа | Java 17, Spring Boot 3.3.5 |
-| Web-слой | Spring Web (REST) |
-| Персистентность | Spring Data JPA, Hibernate, PostgreSQL |
-| Безопасность | Spring Security, JWT (jjwt 0.12) |
-| Валидация | Jakarta Bean Validation |
-| Импорт данных | Apache Commons CSV 1.12 |
-| Документация API | SpringDoc OpenAPI 2.6 (Swagger UI) |
-| Утилиты | Lombok, Maven |
+* **Java 17**
+* **Spring Boot 3.3.5**
+* **Spring Web** (REST API)
+* **Spring Data JPA / Hibernate** (ORM)
+* **PostgreSQL** (База данных)
+* **Spring Security / JWT** (jjwt 0.12 для авторизации)
+* **Jakarta Bean Validation** (Валидация данных)
+* **Apache Commons CSV 1.12** (Парсинг файлов)
+* **SpringDoc OpenAPI 2.6** (Swagger UI для документации)
+* **Lombok / Maven** (Инструменты сборки и кодогенерации)
 
----
 
 ## Ключевой функционал
 
@@ -38,7 +39,21 @@ REST API для управления залом кафе, бронировани
 | **USER** | Аутентифицированный пользователь: бронирование, просмотр и отмена своих броней, создание отзывов |
 | **ADMIN** | Администратор: CRUD столиков, импорт CSV |
 
-Роли хранятся в сущности `User` (`USER` / `ADMIN`). При первом входе всегда назначается `USER`. Роль `ADMIN` назначается вручную в БД (см. раздел «Назначение роли ADMIN»).
+Роли хранятся в сущности `User` (`USER` / `ADMIN`). При первом входе всегда назначается `USER`. Роль `ADMIN` назначается вручную в БД.
+
+## Назначение роли ADMIN (для демонстрации)
+
+При первом входе пользователю всегда назначается роль `USER`. Для тестирования ADMIN-функций:
+
+1. Выполните `POST /api/auth/login` с нужным номером телефона.
+2. В PostgreSQL выполните:
+
+```sql
+UPDATE users SET role = 'ADMIN' WHERE phone_number = '+375291234567';
+```
+
+3. Повторите `POST /api/auth/login` — новый JWT будет содержать `ROLE_ADMIN`.
+4. Используйте этот токен в Swagger для импорта CSV и управления столиками.
 
 ### Управление столиками и поиск свободных мест
 
@@ -50,10 +65,6 @@ REST API для управления залом кафе, бронировани
 - Два статуса: **`CONFIRMED`** (активная бронь) и **`CANCELLED`** (отменена).
 - Новая бронь сразу создаётся со статусом `CONFIRMED`.
 - Защита от двойного бронирования: проверка занятости слота только по активным (`CONFIRMED`) броням.
-- **Защита от IDOR:**
-  - `GET /api/reservations/{id}` — доступ только владельцу или ADMIN (чужая бронь возвращает 404).
-  - `POST /api/reservations/{id}/cancel` — отменить может только владелец или ADMIN.
-  - `GET /api/reservations/my` — список только **активных** броней текущего пользователя.
 
 ### Система отзывов
 
@@ -72,17 +83,6 @@ REST API для управления залом кафе, бронировани
 - Дубликаты по `tableNumber` отклоняются с сообщением `Duplicate tableNumber`.
 
 Пример файла: [`tables.csv`](tables.csv) или [`docs/sample-tables.csv`](docs/sample-tables.csv).
-
----
-
-## Модель данных
-
-| Сущность | Таблица | Описание |
-|---|---|---|
-| `User` | `users` | Пользователь: имя, телефон, роль |
-| `CafeTable` | `cafe_tables` | Столик: номер, вместимость, VIP |
-| `Reservation` | `reservations` | Бронь: пользователь, столик, дата/время, гости, статус |
-| `Review` | `reviews` | Отзыв: пользователь, рейтинг, комментарий, дата создания |
 
 ---
 
@@ -124,9 +124,6 @@ Authorization: Bearer <accessToken>
   "name": "Иван"
 }
 ```
-
-**Ответ (`AuthResponse`):** `accessToken`, `tokenType` (`Bearer`), `userId`, `role` (`ROLE_USER` / `ROLE_ADMIN`).
-
 ---
 
 ### CafeTableController — `/api/tables`
@@ -199,8 +196,6 @@ T1,2,false
 T2,4,false
 T3,6,true
 ```
-
-Допустимые значения `isVip`: `true`, `false`, `1`, `0`, `yes`, `vip`.
 
 **Пример ответа (`ImportResult`):**
 ```json
@@ -372,28 +367,5 @@ UPDATE users SET role = 'ADMIN' WHERE phone_number = '+375291234567';
 2. **Регистрация:** `POST /api/auth/login` → получить JWT.
 3. **USER:** `GET /api/tables/available` → `POST /api/reservations` → `GET /api/reservations/my` → `POST /api/reviews`.
 4. **ADMIN:** назначить роль в БД → перелогиниться → `POST /api/entities/import` (файл `tables.csv`) → `POST /api/tables`.
-5. **IDOR:** попытка `GET /api/reservations/{чужой_id}` → 404.
 
----
 
-## Структура проекта
-
-```
-src/main/java/com/cafe/reservation/
-├── ReservationApiApplication.java
-├── config/          SwaggerConfig
-├── controller/      Auth, CafeTable, Reservation, Review, Import
-├── service/         Auth, CafeTable, Reservation, Review, Import
-├── repository/      User, CafeTable, Reservation, Review
-├── model/           User, CafeTable, Reservation, Review, Role, ReservationStatus
-├── dto/             запросы/ответы, ImportResult
-├── mapper/          CafeTableMapper, ReservationMapper, ReviewMapper
-├── security/        JwtService, JwtAuthenticationFilter, SecurityConfig
-└── exception/       GlobalExceptionHandler, ApiError
-```
-
----
-
-## Репозиторий
-
-https://github.com/SilichTimofey/cafe-reservation
