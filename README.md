@@ -231,23 +231,17 @@ T3,6,true
 
 ## Запуск приложения
 
-### Требования
+### Общие требования
 
-- JDK 17+
-- Maven 3.9+
-- PostgreSQL 14+
+- **JDK 17+**
+- **Maven 3.9+**
+- **PostgreSQL 14+** (локально или в Docker-контейнере)
 
-### 1. Настройка базы данных
+> Spring Boot-приложение всегда запускается локально через Maven. Docker используется только для PostgreSQL.
 
-Создайте базу данных (если ещё не создана):
+При первом запуске Hibernate автоматически создаёт таблицы (`ddl-auto: update`).
 
-```sql
-CREATE DATABASE cafe_reservation;
-```
-
-При первом запуске Hibernate автоматически создаст таблицы (`ddl-auto: update`).
-
-### 2. Переменные окружения (опционально)
+### Переменные окружения (опционально)
 
 | Переменная | Значение по умолчанию | Описание |
 |---|---|---|
@@ -258,31 +252,101 @@ CREATE DATABASE cafe_reservation;
 | `DB_PASSWORD` | `1111` | Пароль БД |
 | `JWT_SECRET` | (dev-ключ в `application.yml`) | Base64-ключ для подписи JWT |
 
-### 3. Запуск через Docker (PostgreSQL)
+---
+
+### Вариант 1 — с Docker (PostgreSQL в контейнере)
+
+**1. Клонировать репозиторий**
 
 ```bash
-docker run --name cafe-db -e POSTGRES_DB=cafe_reservation \
-  -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
+git clone https://github.com/SilichTimofey/cafe-reservation.git
+cd cafe-reservation
 ```
 
-### 4. Сборка и запуск
+**2. Запустить PostgreSQL в Docker**
+
+```bash
+docker run --name cafe-db -e POSTGRES_DB=cafe_reservation -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=1111 -p 5432:5432 -d postgres:16
+```
+
+> Пароль `1111` совпадает с настройками по умолчанию в `application.yml`.
+
+**3. Запустить приложение**
 
 ```bash
 mvn clean spring-boot:run
 ```
 
-Приложение стартует на **http://localhost:8080**.
+**Полезные команды Docker:**
 
-### 5. Swagger UI
+```bash
+docker start cafe-db   # запустить уже созданный контейнер
+docker stop cafe-db    # остановить
+docker rm cafe-db      # удалить контейнер
+```
 
-Интерактивная документация и тестирование API:
+---
 
-**http://localhost:8080/swagger-ui.html**
+### Вариант 2 — локально без Docker
+
+**1. Установить PostgreSQL**
+
+Скачать и установить с https://www.postgresql.org/download/  
+При установке задать пароль пользователя `postgres` (рекомендуется `1111` — как в `application.yml`).
+
+**2. Создать базу данных**
+
+Через pgAdmin или `psql`:
+
+```sql
+CREATE DATABASE cafe_reservation;
+```
+
+**3. Клонировать репозиторий (если ещё не клонировали)**
+
+```bash
+git clone https://github.com/SilichTimofey/cafe-reservation.git
+cd cafe-reservation
+```
+
+**4. Настроить пароль (если отличается от `1111`)**
+
+PowerShell:
+
+```powershell
+$env:DB_PASSWORD="ваш_пароль"
+```
+
+**5. Запустить приложение**
+
+```bash
+mvn clean spring-boot:run
+```
+
+---
+
+### Проверка работы
+
+Приложение доступно по адресу **http://localhost:8080**.
+
+**Swagger UI:** http://localhost:8080/swagger-ui.html
 
 Для защищённых эндпоинтов:
 1. Выполните `POST /api/auth/login` и скопируйте `accessToken`.
 2. Нажмите **Authorize** в Swagger UI.
 3. Введите токен (без префикса `Bearer` — Swagger добавит его автоматически).
+
+**Быстрый тест:**
+
+```json
+POST /api/auth/login
+{
+  "phoneNumber": "+375291234567",
+  "name": "Тест"
+}
+```
+
+Если при старте ошибка подключения к БД — проверьте, что PostgreSQL запущен и пароль совпадает с `DB_PASSWORD`.
 
 ---
 
