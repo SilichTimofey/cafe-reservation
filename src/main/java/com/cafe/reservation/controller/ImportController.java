@@ -17,7 +17,7 @@ public class ImportController {
     private final ImportService importService;
 
     /**
-     * Admin-only bulk import of cafe tables from an Excel (.xlsx/.xls) or CSV file.
+     * Admin-only bulk import of cafe tables from a CSV file.
      * Returns a per-row report rather than a binary success/failure.
      */
     @PostMapping("/import")

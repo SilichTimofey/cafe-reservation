@@ -8,12 +8,6 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,8 +19,8 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Bulk-imports {@link CafeTable} rows from Excel (.xlsx/.xls via Apache POI)
- * or CSV (Apache Commons CSV). Expected columns: tableNumber, capacity, isVip.
+ * Bulk-imports {@link CafeTable} rows from a CSV file (Apache Commons CSV).
+ * Expected columns: tableNumber, capacity, isVip.
  *
  * <p>The import reports partial success: a malformed row is skipped and recorded
  * in {@link ImportResult}, while valid rows are still persisted.
@@ -36,7 +30,6 @@ import java.nio.charset.StandardCharsets;
 public class ImportService {
 
     private final CafeTableRepository tableRepository;
-    private final DataFormatter dataFormatter = new DataFormatter();
 
     @Transactional
     public ImportResult importTables(MultipartFile file) {
@@ -44,45 +37,14 @@ public class ImportService {
             throw new BusinessRuleException("Uploaded file is empty");
         }
         String filename = file.getOriginalFilename();
-        if (filename == null) {
-            throw new BusinessRuleException("Uploaded file has no name");
+        if (filename == null || !filename.toLowerCase().endsWith(".csv")) {
+            throw new BusinessRuleException("Unsupported file type. Use .csv");
         }
-        String lower = filename.toLowerCase();
         try (InputStream in = file.getInputStream()) {
-            if (lower.endsWith(".csv")) {
-                return importFromCsv(in);
-            } else if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
-                return importFromExcel(in);
-            }
-            throw new BusinessRuleException("Unsupported file type. Use .csv, .xls or .xlsx");
+            return importFromCsv(in);
         } catch (IOException ex) {
             throw new BusinessRuleException("Failed to read file: " + ex.getMessage());
         }
-    }
-
-    private ImportResult importFromExcel(InputStream in) throws IOException {
-        ImportResult result = new ImportResult();
-        try (Workbook workbook = WorkbookFactory.create(in)) {
-            Sheet sheet = workbook.getSheetAt(0);
-            boolean headerSkipped = false;
-            for (Row row : sheet) {
-                if (!headerSkipped) {
-                    headerSkipped = true; // first row is the header
-                    continue;
-                }
-                result.incrementTotal();
-                int rowNum = row.getRowNum() + 1;
-                try {
-                    String tableNumber = stringValue(row.getCell(0));
-                    Integer capacity = intValue(row.getCell(1));
-                    boolean vip = boolValue(stringValue(row.getCell(2)));
-                    persist(tableNumber, capacity, vip, rowNum, result);
-                } catch (Exception ex) {
-                    result.addError(rowNum, ex.getMessage());
-                }
-            }
-        }
-        return result;
     }
 
     private ImportResult importFromCsv(InputStream in) throws IOException {
@@ -129,19 +91,6 @@ public class ImportService {
                 .isVip(vip)
                 .build());
         result.incrementImported();
-    }
-
-    private String stringValue(Cell cell) {
-        if (cell == null) {
-            return null;
-        }
-        String value = dataFormatter.formatCellValue(cell).trim();
-        return value.isEmpty() ? null : value;
-    }
-
-    private Integer intValue(Cell cell) {
-        String value = stringValue(cell);
-        return value == null ? null : Integer.parseInt(value);
     }
 
     private boolean boolValue(String raw) {

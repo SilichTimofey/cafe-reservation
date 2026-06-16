@@ -8,7 +8,7 @@ REST API for a single cafe's table reservation system, built with Spring Boot 3 
 - **Spring Data JPA** + **PostgreSQL** — persistence
 - **Spring Security** + **JWT (jjwt)** — stateless authentication & role-based authorization
 - **Lombok** — boilerplate reduction on entities
-- **Apache POI** + **Commons CSV** — bulk import of tables from Excel/CSV
+- **Commons CSV** — bulk import of tables from CSV
 - **Bean Validation** — request DTO validation
 
 ## Architecture (layered)
@@ -26,7 +26,7 @@ exception    ->  domain exceptions + @RestControllerAdvice (uniform ApiError)
 
 Key design rules:
 - JPA entities never cross the controller boundary — only DTOs do.
-- Double-booking is prevented in `ReservationService` via an overlap query; `@Version` on entities guards concurrent writes.
+- Double-booking is prevented in `ReservationService` via an overlap query.
 - Bulk import reports **partial success** (`ImportResult`) instead of a binary outcome.
 
 ## Package layout
@@ -82,7 +82,7 @@ mvn clean spring-boot:run
 | GET | `/api/reservations/{id}` | owner/ADMIN | Get reservation |
 | POST | `/api/reservations` | USER | Create reservation |
 | POST | `/api/reservations/{id}/cancel` | owner/ADMIN | Cancel reservation |
-| POST | `/api/entities/import` | ADMIN | Import tables (Excel/CSV) |
+| POST | `/api/entities/import` | ADMIN | Import tables (CSV) |
 
 ## Import file format
 
