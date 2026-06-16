@@ -25,7 +25,7 @@ public class ReservationService {
 
     /** Statuses considered active (still occupying a slot). */
     public static final List<ReservationStatus> ACTIVE_STATUSES =
-            List.of(ReservationStatus.PENDING, ReservationStatus.CONFIRMED);
+            List.of(ReservationStatus.CONFIRMED);
 
     private final ReservationRepository repository;
     private final UserRepository userRepository;
@@ -67,7 +67,7 @@ public class ReservationService {
                 .guestsCount(dto.guestsCount())
                 .reservationDate(dto.reservationDate())
                 .reservationTime(dto.reservationTime())
-                .status(ReservationStatus.PENDING)
+                .status(ReservationStatus.CONFIRMED)
                 .build();
         return mapper.toResponse(repository.save(reservation));
     }

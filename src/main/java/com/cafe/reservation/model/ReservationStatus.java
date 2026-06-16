@@ -5,8 +5,6 @@ package com.cafe.reservation.model;
  * and to allow state-transition validation in the service layer.
  */
 public enum ReservationStatus {
-    PENDING,
     CONFIRMED,
-    CANCELLED,
-    COMPLETED
+    CANCELLED
 }
