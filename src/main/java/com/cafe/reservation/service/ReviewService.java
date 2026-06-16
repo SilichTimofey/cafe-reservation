@@ -32,9 +32,9 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewResponseDTO create(ReviewRequestDTO dto) {
-        User user = userRepository.findById(dto.userId())
-                .orElseThrow(() -> ResourceNotFoundException.of("User", dto.userId()));
+    public ReviewResponseDTO create(ReviewRequestDTO dto, Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> ResourceNotFoundException.of("User", userId));
         Review review = Review.builder()
                 .user(user)
                 .rating(dto.rating())
