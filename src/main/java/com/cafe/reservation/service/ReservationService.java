@@ -8,11 +8,13 @@ import com.cafe.reservation.mapper.ReservationMapper;
 import com.cafe.reservation.model.CafeTable;
 import com.cafe.reservation.model.Reservation;
 import com.cafe.reservation.model.ReservationStatus;
+import com.cafe.reservation.model.Role;
 import com.cafe.reservation.model.User;
 import com.cafe.reservation.repository.CafeTableRepository;
 import com.cafe.reservation.repository.ReservationRepository;
 import com.cafe.reservation.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,17 +34,22 @@ public class ReservationService {
     private final CafeTableRepository tableRepository;
     private final ReservationMapper mapper;
 
-    public List<ReservationResponseDTO> findByUser(Long userId) {
-        return repository.findByUserId(userId).stream().map(mapper::toResponse).toList();
-    }
-
     public List<ReservationResponseDTO> findActiveByUser(Long userId) {
         return repository.findByUserIdAndStatusIn(userId, ACTIVE_STATUSES)
                 .stream().map(mapper::toResponse).toList();
     }
 
     public ReservationResponseDTO findById(Long id) {
-        return mapper.toResponse(get(id));
+        Reservation reservation = get(id);
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        Long callerId = (Long) auth.getPrincipal();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!reservation.getUser().getId().equals(callerId) && !isAdmin) {
+            throw ResourceNotFoundException.of("Reservation", id);
+        }
+        return mapper.toResponse(reservation);
     }
 
     @Transactional
@@ -56,8 +63,8 @@ public class ReservationService {
             throw new BusinessRuleException(
                     "Guests count %d exceeds table capacity %d".formatted(dto.guestsCount(), table.getCapacity()));
         }
-        if (repository.existsByTableIdAndReservationDateAndReservationTime(
-                table.getId(), dto.reservationDate(), dto.reservationTime())) {
+        if (repository.existsByTableIdAndReservationDateAndReservationTimeAndStatusIn(
+                table.getId(), dto.reservationDate(), dto.reservationTime(), ACTIVE_STATUSES)) {
             throw new BusinessRuleException("Table is already booked for this date and time");
         }
 
@@ -73,13 +80,19 @@ public class ReservationService {
     }
 
     @Transactional
-    public ReservationResponseDTO cancel(Long id) {
+    public ReservationResponseDTO cancel(Long id, Long userId) {
         Reservation reservation = get(id);
+        User caller = userRepository.findById(userId)
+                .orElseThrow(() -> ResourceNotFoundException.of("User", userId));
+
+        if (!reservation.getUser().getId().equals(userId) && caller.getRole() != Role.ADMIN) {
+            throw new BusinessRuleException("You can only cancel your own reservation");
+        }
         if (reservation.getStatus() == ReservationStatus.CANCELLED) {
             throw new BusinessRuleException("Reservation is already cancelled");
         }
         reservation.setStatus(ReservationStatus.CANCELLED);
-        return mapper.toResponse(reservation);
+        return mapper.toResponse(repository.save(reservation));
     }
 
     private Reservation get(Long id) {

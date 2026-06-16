@@ -27,10 +27,6 @@ public class ReviewService {
         return repository.findAll().stream().map(mapper::toResponse).toList();
     }
 
-    public List<ReviewResponseDTO> findByUser(Long userId) {
-        return repository.findByUserId(userId).stream().map(mapper::toResponse).toList();
-    }
-
     @Transactional
     public ReviewResponseDTO create(ReviewRequestDTO dto, Long userId) {
         User user = userRepository.findById(userId)

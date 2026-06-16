@@ -33,7 +33,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
-        return build(HttpStatus.UNAUTHORIZED, "Invalid email or password", req);
+        return build(HttpStatus.UNAUTHORIZED, "Неверное имя или номер телефона", req);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

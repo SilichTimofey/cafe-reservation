@@ -42,7 +42,9 @@ public class ReservationController {
     }
 
     @PostMapping("/{id}/cancel")
-    public ReservationResponseDTO cancel(@PathVariable Long id) {
-        return reservationService.cancel(id);
+    public ReservationResponseDTO cancel(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Long userId) {
+        return reservationService.cancel(id, userId);
     }
 }
