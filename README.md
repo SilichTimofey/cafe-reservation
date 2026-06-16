@@ -52,9 +52,8 @@ Configured via environment variables (see `src/main/resources/application.yml`):
 |---|---|---|
 | `DB_HOST` / `DB_PORT` | `localhost` / `5432` | PostgreSQL host/port |
 | `DB_NAME` | `cafe_reservation` | Database name |
-| `DB_USERNAME` / `DB_PASSWORD` | `postgres` / `postgres` | DB credentials |
+| `DB_USER` / `DB_PASSWORD` | `postgres` / `1111` | DB credentials |
 | `JWT_SECRET` | (dev default) | **Base64-encoded** 256-bit signing key — override in prod |
-| `JWT_EXPIRATION_MS` | `3600000` | Access token validity (1h) |
 
 ## Build & run
 
@@ -73,15 +72,17 @@ mvn clean spring-boot:run
 
 | Method | Path | Access | Description |
 |---|---|---|---|
-| POST | `/api/v1/auth/register` | public | Register a user |
-| POST | `/api/v1/auth/login` | public | Login, returns JWT |
-| GET | `/api/v1/tables` | public | List tables |
-| GET | `/api/v1/tables/{id}` | public | Get table |
-| POST/PUT/DELETE | `/api/v1/tables/**` | ADMIN | Manage tables |
-| GET | `/api/v1/reservations/me` | USER | My reservations |
-| POST | `/api/v1/reservations` | USER | Create reservation |
-| POST | `/api/v1/reservations/{id}/cancel` | owner/ADMIN | Cancel reservation |
-| POST | `/api/v1/import/tables` | ADMIN | Import tables (Excel/CSV) |
+| POST | `/api/auth/login` | public | Login, returns JWT |
+| GET | `/api/tables` | public | List tables |
+| GET | `/api/tables/available` | public | List available tables |
+| GET | `/api/tables/{id}` | public | Get table |
+| POST/PUT/DELETE | `/api/tables/**` | ADMIN | Manage tables |
+| GET | `/api/reviews` | public | List reviews |
+| GET | `/api/reservations/my` | USER | My reservations |
+| GET | `/api/reservations/{id}` | owner/ADMIN | Get reservation |
+| POST | `/api/reservations` | USER | Create reservation |
+| POST | `/api/reservations/{id}/cancel` | owner/ADMIN | Cancel reservation |
+| POST | `/api/entities/import` | ADMIN | Import tables (Excel/CSV) |
 
 ## Import file format
 
